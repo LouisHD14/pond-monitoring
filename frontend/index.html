@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teich-Monitoring · Dashboard</title>
+<style>
+/* ============================================================
+   Farbschema — Teich-/Wasserpalette (Blau-/Grüntöne)
+   Beide Modi sind eigenständig gewählt und gegen die jeweilige
+   Fläche validiert (kein automatisches Invertieren).
+   ============================================================ */
+:root{
+  --page:#f2f7f6;
+  --surface:#fdfefe;
+  --text-primary:#0c1b1e;
+  --text-secondary:#48605f;
+  --text-muted:#7d908f;
+  --grid:#e2eae9;
+  --baseline:#c6d4d3;
+  --border:rgba(12,27,30,.10);
+  --accent:#2a78d6;
+
+  /* Serienfarben (fest je Messgröße, nie rotiert) */
+  --s-temp:#2a78d6;
+  --s-ph:#1baf7a;
+  --s-o2:#4a3aa7;
+
+  /* Statusfarben (reserviert, nie als Serienfarbe) */
+  --status-good:#0ca30c;
+  --status-good-text:#006300;
+  --status-warn:#c47d0d;
+  --status-crit:#d03b3b;
+  --status-warn-bg:rgba(196,125,13,.10);
+  --status-good-bg:rgba(12,163,12,.08);
+
+  --shadow:0 1px 2px rgba(12,27,30,.05), 0 4px 16px rgba(12,27,30,.05);
+}
+:root[data-theme="dark"]{
+  --page:#0d181b;
+  --surface:#16262a;
+  --text-primary:#f2f7f6;
+  --text-secondary:#b7c8c6;
+  --text-muted:#84989a;
+  --grid:#22343a;
+  --baseline:#33474d;
+  --border:rgba(242,247,246,.10);
+  --accent:#3987e5;
+
+  --s-temp:#3987e5;
+  --s-ph:#199e70;
+  --s-o2:#9085e9;
+
+  --status-good:#0ca30c;
+  --status-good-text:#2fbf2f;
+  --status-warn:#fab219;
+  --status-crit:#e05252;
+  --status-warn-bg:rgba(250,178,25,.12);
+  --status-good-bg:rgba(12,163,12,.14);
+
+  --shadow:0 1px 2px rgba(0,0,0,.25), 0 4px 16px rgba(0,0,0,.25);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--page);
+  color:var(--text-primary);
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:15px;
+  line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:20px 20px 48px}
+
+/* ---------- Kopfzeile ---------- */
+header.topbar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:6px 0 18px;
+}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand svg{flex:none}
+.brand h1{font-size:19px;font-weight:650;margin:0;letter-spacing:-.01em}
+.brand .sub{font-size:12.5px;color:var(--text-muted);margin-top:1px}
+.badge-demo{
+  font-size:11.5px;font-weight:600;letter-spacing:.02em;
+  color:var(--text-secondary);
+  border:1px solid var(--border);
+  background:var(--surface);
+  border-radius:999px;padding:3px 10px;white-space:nowrap;
+}
+.topbar-spacer{flex:1}
+.updated{font-size:12.5px;color:var(--text-muted);white-space:nowrap}
+.theme-btn{
+  appearance:none;border:1px solid var(--border);background:var(--surface);
+  color:var(--text-secondary);border-radius:8px;padding:6px 10px;cursor:pointer;
+  display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:13px;
+}
+.theme-btn:hover{color:var(--text-primary)}
+
+/* ---------- Live-Kacheln ---------- */
+.tiles{
+  display:grid;gap:14px;
+  grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+}
+.tile{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:16px 18px 14px;box-shadow:var(--shadow);
+  display:flex;flex-direction:column;gap:8px;min-width:0;
+}
+.tile-head{display:flex;align-items:center;gap:9px;color:var(--text-secondary);font-size:13.5px;font-weight:550}
+.tile-head .ticon{
+  width:30px;height:30px;border-radius:8px;flex:none;
+  display:flex;align-items:center;justify-content:center;
+}
+.tile-value{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.tile-value .num{font-size:42px;font-weight:650;letter-spacing:-.02em;line-height:1.05}
+.tile-value .unit{font-size:17px;color:var(--text-secondary);font-weight:500}
+.tile-foot{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap}
+.tile-delta{font-size:12.5px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.tile-delta .arrow{font-weight:700}
+.tile-spark{flex:none}
+.status-chip{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11.5px;font-weight:600;border-radius:999px;padding:2.5px 9px;
+}
+.status-chip.ok{color:var(--status-good-text);background:var(--status-good-bg)}
+.status-chip.warn{color:var(--status-warn);background:var(--status-warn-bg)}
+.status-chip svg{flex:none}
+
+/* ---------- Filterzeile (Zeitraum) ---------- */
+.controls{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  margin:26px 0 14px;
+}
+.controls .label{font-size:13px;color:var(--text-muted)}
+.seg{
+  display:inline-flex;border:1px solid var(--border);border-radius:9px;
+  background:var(--surface);padding:3px;gap:2px;
+}
+.seg button{
+  appearance:none;border:0;background:transparent;color:var(--text-secondary);
+  font:inherit;font-size:13.5px;font-weight:550;padding:6px 14px;border-radius:6px;
+  cursor:pointer;
+}
+.seg button[aria-pressed="true"]{
+  background:var(--accent);color:#fff;
+}
+.seg button:not([aria-pressed="true"]):hover{color:var(--text-primary)}
+.range-note{font-size:12.5px;color:var(--text-muted)}
+
+/* ---------- Chart-Karten ---------- */
+.charts{display:grid;gap:16px;grid-template-columns:1fr}
+.chart-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;padding:16px 18px 10px;box-shadow:var(--shadow);
+  min-width:0;
+}
+.chart-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.chart-head .key{width:14px;height:3px;border-radius:2px;flex:none;align-self:center}
+.chart-head h2{font-size:15px;font-weight:600;margin:0}
+.chart-head .range-tag{font-size:12px;color:var(--text-muted)}
+.chart-box{position:relative;width:100%}
+.chart-box svg{display:block;width:100%;height:auto;outline:none;touch-action:pan-y}
+.chart-box svg:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.tooltip{
+  position:absolute;pointer-events:none;z-index:5;display:none;
+  background:var(--surface);border:1px solid var(--border);border-radius:9px;
+  box-shadow:var(--shadow);padding:8px 11px;min-width:120px;
+}
+.tooltip .tt-date{font-size:11.5px;color:var(--text-muted);margin-bottom:3px;white-space:nowrap}
+.tooltip .tt-row{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.tooltip .tt-key{width:12px;height:2.5px;border-radius:2px;flex:none}
+.tooltip .tt-val{font-size:14.5px;font-weight:650}
+.tooltip .tt-name{font-size:12px;color:var(--text-secondary)}
+details.tableview{margin:2px 0 6px}
+details.tableview summary{
+  cursor:pointer;font-size:12.5px;color:var(--text-muted);padding:5px 0;
+  list-style-position:inside;
+}
+details.tableview summary:hover{color:var(--text-secondary)}
+.tablescroll{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px}
+table.data{border-collapse:collapse;width:100%;font-size:12.5px}
+table.data th,table.data td{
+  text-align:left;padding:5px 12px;border-bottom:1px solid var(--grid);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+table.data th{
+  position:sticky;top:0;background:var(--surface);color:var(--text-muted);
+  font-weight:600;font-size:11.5px;
+}
+table.data td:last-child,table.data th:last-child{text-align:right}
+
+/* ---------- Fußzeile ---------- */
+footer{
+  margin-top:34px;padding-top:16px;border-top:1px solid var(--border);
+  font-size:12.5px;color:var(--text-muted);line-height:1.6;
+}
+footer strong{color:var(--text-secondary);font-weight:600}
+
+@media (max-width:640px){
+  .wrap{padding:14px 12px 40px}
+  .tile-value .num{font-size:36px}
+  .updated{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="topbar">
+    <div class="brand">
+      <!-- Wellen-Logo -->
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+        <rect width="34" height="34" rx="9" fill="var(--accent)" opacity=".14"/>
+        <path d="M6 14c2.6-3 5.4-3 8 0s5.4 3 8 0 4.4-2.4 6 0" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M6 21c2.6-3 5.4-3 8 0s5.4 3 8 0 4.4-2.4 6 0" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" opacity=".55"/>
+      </svg>
+      <div>
+        <h1>Teich-Monitoring</h1>
+        <div class="sub">Wasserwerte Gartenteich</div>
+      </div>
+    </div>
+    <span class="badge-demo">Phase 1 · Demo-Daten</span>
+    <div class="topbar-spacer"></div>
+    <span class="updated" id="updated"></span>
+    <button class="theme-btn" id="themeBtn" type="button" aria-label="Farbschema umschalten">
+      <span id="themeIcon" aria-hidden="true"></span><span id="themeLabel"></span>
+    </button>
+  </header>
+
+  <!-- Live-Kacheln -->
+  <section class="tiles" id="tiles" aria-label="Aktuelle Messwerte"></section>
+
+  <!-- Zeitraum-Umschalter: eine Zeile, gilt für alle Charts darunter -->
+  <div class="controls">
+    <span class="label">Zeitraum</span>
+    <div class="seg" role="group" aria-label="Zeitraum wählen">
+      <button type="button" id="btn7" aria-pressed="true">7 Tage</button>
+      <button type="button" id="btn31" aria-pressed="false">31 Tage</button>
+    </div>
+    <span class="range-note" id="rangeNote"></span>
+  </div>
+
+  <!-- Verlaufscharts -->
+  <section class="charts" id="charts" aria-label="Verlaufsdiagramme"></section>
+
+  <footer>
+    <strong>Design-Prototyp (Phase 1):</strong> Alle Werte sind plausible, clientseitig
+    generierte Beispieldaten — es besteht keine Verbindung zu echten Sensoren.
+    Datenmodell entspricht bereits der Zielstruktur: Live-Wert je Sensor,
+    7-Tage-Historie mit 1 Punkt/Stunde, 31-Tage-Historie mit 1 Punkt/Tag (12:00&nbsp;Uhr).
+    In Phase 2 werden diese Reihen durch echte Messwerte ersetzt (ESP32 → MQTT →
+    InfluxDB → API), ohne dass sich die Chart-Logik ändert.
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   1) SENSOR-KONFIGURATION
+   Neue Messgrößen (z. B. Redoxpotential, Wasserstand) werden
+   ausschließlich hier ergänzt — Kacheln, Charts, Tooltips und
+   Tabellen entstehen automatisch aus dieser Liste.
+   ============================================================ */
+const SENSORS = [
+  {
+    id: "temp",
+    label: "Wassertemperatur",
+    unit: "°C",
+    decimals: 1,
+    colorVar: "--s-temp",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4a2 2 0 0 0-4 0v9.5a4 4 0 1 0 4 0z"/><path d="M12 9v6"/></svg>',
+    // Grenzwerte für die farbliche Kennzeichnung (Warnbereich außerhalb)
+    limits: { min: 10, max: 24 },
+    // Parameter der Fake-Daten-Generierung
+    fake: { base: 19.4, diurnalAmp: 1.6, peakHour: 16, driftAmp: 1.4, seed: 101 }
+  },
+  {
+    id: "ph",
+    label: "pH-Wert",
+    unit: "pH",
+    decimals: 2,
+    colorVar: "--s-ph",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.7s6.5 7.1 6.5 12a6.5 6.5 0 1 1-13 0c0-4.9 6.5-12 6.5-12z"/></svg>',
+    limits: { min: 6.8, max: 8.4 },
+    fake: { base: 7.42, diurnalAmp: 0.17, peakHour: 17, driftAmp: 0.13, seed: 202 }
+  },
+  {
+    id: "o2",
+    label: "Sauerstoff (gelöst)",
+    unit: "mg/l",
+    decimals: 1,
+    colorVar: "--s-o2",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="9" r="3.4"/><circle cx="16" cy="15" r="4.2"/><circle cx="16.5" cy="5.5" r="1.6"/></svg>',
+    limits: { min: 6.0, max: null },
+    fake: { base: 7.4, diurnalAmp: 1.25, peakHour: 17, driftAmp: 0.55, seed: 303 }
+  }
+];
+
+const RANGES = {
+  d7:  { key: "d7",  label: "7 Tage",  tag: "Letzte 7 Tage · stündlich" },
+  d31: { key: "d31", label: "31 Tage", tag: "Letzte 31 Tage · täglich 12:00 Uhr" }
+};
+
+/* ============================================================
+   2) FAKE-DATEN
+   Deterministisch (geseedet) generiert: Tagesgang als Sinuswelle
+   (Peak am Nachmittag), dazu ein langsamer mehrtägiger Drift aus
+   überlagerten Sinuswellen — kein strukturloses Rauschen.
+   Ausgabeformat = Zielstruktur der späteren API:
+     live:  { t, v }                    — aktuellster Messwert
+     d7:    [{ t, v } × 168]            — 1 Punkt pro Stunde, 7 Tage
+     d31:   [{ t, v } × 31]             — 1 Punkt pro Tag, 12:00 Uhr
+   ============================================================ */
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const DAY_MS = 24 * 3600 * 1000;
+
+function makeValueFn(fake) {
+  const rnd = mulberry32(fake.seed);
+  // Feste Phasen und leicht "krumme" Frequenzen für den mehrtägigen Drift
+  const ph = [rnd() * 6.283, rnd() * 6.283, rnd() * 6.283];
+  return function (tMs) {
+    const d = new Date(tMs);
+    const hourFrac = d.getHours() + d.getMinutes() / 60;
+    // Tagesgang: Maximum bei peakHour
+    const diurnal = Math.cos(((hourFrac - fake.peakHour) / 24) * 2 * Math.PI) * fake.diurnalAmp;
+    // Langsamer Drift über mehrere Tage (Wetterlage)
+    const td = tMs / DAY_MS;
+    const drift = (
+      Math.sin(td * 2 * Math.PI * 0.13 + ph[0]) * 0.55 +
+      Math.sin(td * 2 * Math.PI * 0.31 + ph[1]) * 0.30 +
+      Math.sin(td * 2 * Math.PI * 0.052 + ph[2]) * 0.45
+    ) * fake.driftAmp;
+    // Feines, deterministisches Zittern
+    const jitter = Math.sin(td * 2 * Math.PI * 3.7 + ph[0] * 2) * fake.diurnalAmp * 0.06;
+    return fake.base + diurnal + drift + jitter;
+  };
+}
+
+function buildSeries() {
+  const now = new Date();
+  const lastFullHour = new Date(now); lastFullHour.setMinutes(0, 0, 0);
+  const data = {};
+  for (const s of SENSORS) {
+    const valueAt = makeValueFn(s.fake);
+    // 7 Tage, 1 Punkt pro Stunde (168 Punkte, endet mit der letzten vollen Stunde)
+    const d7 = [];
+    for (let i = 167; i >= 0; i--) {
+      const t = lastFullHour.getTime() - i * 3600 * 1000;
+      d7.push({ t, v: valueAt(t) });
+    }
+    // 31 Tage, 1 Punkt pro Tag — jeweils der 12:00-Uhr-Wert.
+    // Letzter Punkt ist der jüngste bereits vergangene 12:00-Uhr-Zeitpunkt.
+    const lastNoon = new Date(now); lastNoon.setHours(12, 0, 0, 0);
+    if (lastNoon.getTime() > now.getTime()) lastNoon.setDate(lastNoon.getDate() - 1);
+    const d31 = [];
+    for (let i = 30; i >= 0; i--) {
+      const day = new Date(lastNoon); day.setDate(day.getDate() - i);
+      d31.push({ t: day.getTime(), v: valueAt(day.getTime()) });
+    }
+    data[s.id] = { live: { t: now.getTime(), v: valueAt(now.getTime()) }, d7, d31 };
+  }
+  return { now, data };
+}
+
+/* ============================================================
+   3) HILFSFUNKTIONEN
+   ============================================================ */
+const nfCache = {};
+function fmt(v, decimals) {
+  const k = "d" + decimals;
+  if (!nfCache[k]) nfCache[k] = new Intl.NumberFormat("de-DE", {
+    minimumFractionDigits: decimals, maximumFractionDigits: decimals
+  });
+  return nfCache[k].format(v);
+}
+const fmtWeekday = new Intl.DateTimeFormat("de-DE", { weekday: "short" });
+const fmtDayMonth = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit" });
+function fmtTooltipDate(t, rangeKey) {
+  const d = new Date(t);
+  if (rangeKey === "d7") {
+    return `${fmtWeekday.format(d)}, ${fmtDayMonth.format(d)} · ${String(d.getHours()).padStart(2, "0")}:00 Uhr`;
+  }
+  return `${fmtWeekday.format(d)}, ${fmtDayMonth.format(d)} · 12:00 Uhr`;
+}
+
+function svgEl(name, attrs) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+// "Schöne" Achsenwerte
+function niceTicks(min, max, count) {
+  const span = max - min;
+  if (span <= 0) return [min];
+  const step0 = span / Math.max(1, count);
+  const mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  let step = mag;
+  for (const m of [1, 2, 2.5, 5, 10]) { if (mag * m >= step0) { step = mag * m; break; } }
+  const ticks = [];
+  for (let t = Math.ceil(min / step) * step; t <= max + 1e-9; t += step) {
+    ticks.push(Math.round(t / step) * step);
+  }
+  return ticks;
+}
+function limitStatus(sensor, v) {
+  const { min, max } = sensor.limits;
+  if (min != null && v < min) return { state: "warn", text: "Unter Grenzwert" };
+  if (max != null && v > max) return { state: "warn", text: "Über Grenzwert" };
+  return { state: "ok", text: "Im Normalbereich" };
+}
+
+const ICON_OK = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5 9.5 18 20 6.5"/></svg>';
+const ICON_WARN = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2.5 20h19z"/><path d="M12 9.5v4.5"/><circle cx="12" cy="17" r=".4" fill="currentColor"/></svg>';
+
+/* ============================================================
+   4) LIVE-KACHELN
+   ============================================================ */
+function renderTiles(model) {
+  const wrap = document.getElementById("tiles");
+  wrap.textContent = "";
+  for (const s of SENSORS) {
+    const d = model.data[s.id];
+    const live = d.live.v;
+    const prev = d.d7[d.d7.length - 25]; // Wert vor ~24 h
+    const delta = live - prev.v;
+    const st = limitStatus(s, live);
+    const color = cssVar(s.colorVar);
+
+    const tile = document.createElement("article");
+    tile.className = "tile";
+
+    const head = document.createElement("div");
+    head.className = "tile-head";
+    const ic = document.createElement("span");
+    ic.className = "ticon";
+    ic.style.background = color + "22";
+    ic.style.color = color;
+    ic.innerHTML = s.icon;
+    head.appendChild(ic);
+    head.appendChild(document.createTextNode(s.label));
+    tile.appendChild(head);
+
+    const val = document.createElement("div");
+    val.className = "tile-value";
+    const num = document.createElement("span");
+    num.className = "num";
+    num.textContent = fmt(live, s.decimals);
+    const unit = document.createElement("span");
+    unit.className = "unit";
+    unit.textContent = s.unit;
+    val.appendChild(num); val.appendChild(unit);
+    tile.appendChild(val);
+
+    const foot = document.createElement("div");
+    foot.className = "tile-foot";
+    const dl = document.createElement("span");
+    dl.className = "tile-delta";
+    const arrow = delta > 0.005 ? "▲" : delta < -0.005 ? "▼" : "±";
+    dl.innerHTML = `<span class="arrow">${arrow}</span> ${fmt(Math.abs(delta), s.decimals)} ${s.unit} ggü. Vortag`;
+    foot.appendChild(dl);
+    foot.appendChild(makeSparkline(d.d7.slice(-24), color));
+    tile.appendChild(foot);
+
+    const chipRow = document.createElement("div");
+    const chip = document.createElement("span");
+    chip.className = "status-chip " + st.state;
+    chip.innerHTML = (st.state === "ok" ? ICON_OK : ICON_WARN) + " ";
+    chip.appendChild(document.createTextNode(st.text));
+    chipRow.appendChild(chip);
+    tile.appendChild(chipRow);
+
+    wrap.appendChild(tile);
+  }
+}
+
+// Kleine 24-h-Sparkline: gedämpfte Linie, Endpunkt in der Serienfarbe
+function makeSparkline(points, color) {
+  const w = 84, h = 30, pad = 3;
+  const vs = points.map(p => p.v);
+  const min = Math.min(...vs), max = Math.max(...vs);
+  const span = (max - min) || 1;
+  const x = i => pad + (i / (points.length - 1)) * (w - 2 * pad);
+  const y = v => h - pad - ((v - min) / span) * (h - 2 * pad);
+  const svg = svgEl("svg", { width: w, height: h, viewBox: `0 0 ${w} ${h}`, class: "tile-spark", "aria-hidden": "true" });
+  let dPath = "";
+  points.forEach((p, i) => { dPath += (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p.v).toFixed(1); });
+  svg.appendChild(svgEl("path", { d: dPath, fill: "none", stroke: cssVar("--text-muted"), "stroke-width": 1.6, "stroke-linecap": "round", "stroke-linejoin": "round", opacity: .7 }));
+  const last = points[points.length - 1];
+  svg.appendChild(svgEl("circle", { cx: x(points.length - 1), cy: y(last.v), r: 3.4, fill: color, stroke: cssVar("--surface"), "stroke-width": 2 }));
+  return svg;
+}
+
+/* ============================================================
+   5) VERLAUFSCHARTS (SVG, ohne externe Bibliothek)
+   Liniendiagramm mit Flächen-Wash, Grenzwertlinie, Fadenkreuz-
+   Tooltip (Maus + Tastatur) und Tabellenansicht.
+   ============================================================ */
+function renderCharts(model, rangeKey) {
+  const wrap = document.getElementById("charts");
+  wrap.textContent = "";
+  document.getElementById("rangeNote").textContent = RANGES[rangeKey].tag;
+  for (const s of SENSORS) {
+    const { card, draw } = buildChartCard(s, model.data[s.id][rangeKey], rangeKey);
+    wrap.appendChild(card); // erst einhängen, damit clientWidth stimmt …
+    draw();                 // … dann in echter Breite zeichnen
+  }
+}
+
+function buildChartCard(sensor, points, rangeKey) {
+  const color = cssVar(sensor.colorVar);
+  const card = document.createElement("article");
+  card.className = "chart-card";
+
+  const head = document.createElement("div");
+  head.className = "chart-head";
+  const key = document.createElement("span");
+  key.className = "key";
+  key.style.background = color;
+  head.appendChild(key);
+  const h2 = document.createElement("h2");
+  h2.textContent = `${sensor.label} (${sensor.unit})`;
+  head.appendChild(h2);
+  const tag = document.createElement("span");
+  tag.className = "range-tag";
+  tag.textContent = RANGES[rangeKey].tag;
+  head.appendChild(tag);
+  card.appendChild(head);
+
+  const box = document.createElement("div");
+  box.className = "chart-box";
+  card.appendChild(box);
+
+  card.appendChild(buildTableView(sensor, points, rangeKey));
+  return { card, draw: () => drawLineChart(box, sensor, points, rangeKey, color) };
+}
+
+function drawLineChart(box, sensor, points, rangeKey, color) {
+  const W = Math.max(320, box.clientWidth || 900);
+  const H = 230;
+  const M = { top: 14, right: 18, bottom: 26, left: 46 };
+  const iw = W - M.left - M.right, ih = H - M.top - M.bottom;
+
+  const vs = points.map(p => p.v);
+  let vMin = Math.min(...vs), vMax = Math.max(...vs);
+  const pad = (vMax - vMin || 1) * 0.12;
+  vMin -= pad; vMax += pad;
+  // Nahe Grenzwerte in den Wertebereich aufnehmen, damit die Linie sichtbar ist
+  for (const lim of [sensor.limits.min, sensor.limits.max]) {
+    if (lim == null) continue;
+    const spanNow = vMax - vMin;
+    if (lim >= vMin - spanNow * 0.25 && lim < vMin) vMin = lim - spanNow * 0.05;
+    if (lim <= vMax + spanNow * 0.25 && lim > vMax) vMax = lim + spanNow * 0.05;
+  }
+  const tMin = points[0].t, tMax = points[points.length - 1].t;
+  const x = t => M.left + ((t - tMin) / (tMax - tMin)) * iw;
+  const y = v => M.top + ih - ((v - vMin) / (vMax - vMin)) * ih;
+
+  const svg = svgEl("svg", {
+    viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", tabindex: "0",
+    "aria-label": `${sensor.label}, Verlauf ${RANGES[rangeKey].label}. Mit Pfeiltasten Werte abfragen.`
+  });
+
+  const gridColor = cssVar("--grid");
+  const mutedInk = cssVar("--text-muted");
+  const baseInk = cssVar("--baseline");
+
+  // Horizontale Gitterlinien + Y-Beschriftung
+  for (const tv of niceTicks(vMin, vMax, 4)) {
+    const yy = y(tv);
+    svg.appendChild(svgEl("line", { x1: M.left, x2: W - M.right, y1: yy, y2: yy, stroke: gridColor, "stroke-width": 1 }));
+    const lbl = svgEl("text", { x: M.left - 8, y: yy + 3.5, "text-anchor": "end", "font-size": 11, fill: mutedInk, style: "font-variant-numeric:tabular-nums" });
+    lbl.textContent = fmt(tv, sensor.decimals <= 1 ? 1 : sensor.decimals);
+    svg.appendChild(lbl);
+  }
+
+  // X-Achse (Grundlinie) + Datumsbeschriftung
+  svg.appendChild(svgEl("line", { x1: M.left, x2: W - M.right, y1: M.top + ih, y2: M.top + ih, stroke: baseInk, "stroke-width": 1 }));
+  const dayStep = rangeKey === "d7" ? (W < 560 ? 2 : 1) : (W < 640 ? 7 : 5);
+  const startDay = new Date(tMin); startDay.setHours(0, 0, 0, 0);
+  let di = 0;
+  for (let d = new Date(startDay); d.getTime() <= tMax; d.setDate(d.getDate() + 1), di++) {
+    if (d.getTime() < tMin) continue;
+    if (di % dayStep !== 0) continue;
+    const xx = x(rangeKey === "d31" ? new Date(d).setHours(12, 0, 0, 0) : d.getTime());
+    if (xx < M.left - 1 || xx > W - M.right + 1) continue;
+    const lbl = svgEl("text", { x: xx, y: H - 8, "text-anchor": "middle", "font-size": 11, fill: mutedInk });
+    lbl.textContent = (rangeKey === "d7" ? fmtWeekday.format(d) + " " : "") + fmtDayMonth.format(d);
+    svg.appendChild(lbl);
+  }
+
+  // Grenzwertlinien (nur wenn im sichtbaren Bereich)
+  const warnColor = cssVar("--status-warn");
+  for (const [lim, name] of [[sensor.limits.min, "Min"], [sensor.limits.max, "Max"]]) {
+    if (lim == null || lim < vMin || lim > vMax) continue;
+    const yy = y(lim);
+    svg.appendChild(svgEl("line", { x1: M.left, x2: W - M.right, y1: yy, y2: yy, stroke: warnColor, "stroke-width": 1, opacity: .75 }));
+    const lbl = svgEl("text", { x: W - M.right, y: yy - 4, "text-anchor": "end", "font-size": 10.5, fill: warnColor, "font-weight": 600 });
+    lbl.textContent = `${name} ${fmt(lim, sensor.decimals <= 1 ? 1 : sensor.decimals)} ${sensor.unit}`;
+    svg.appendChild(lbl);
+  }
+
+  // Flächen-Wash + Datenlinie
+  let dLine = "";
+  points.forEach((p, i) => { dLine += (i ? "L" : "M") + x(p.t).toFixed(1) + " " + y(p.v).toFixed(1); });
+  const dArea = dLine + `L${x(tMax).toFixed(1)} ${M.top + ih}L${x(tMin).toFixed(1)} ${M.top + ih}Z`;
+  svg.appendChild(svgEl("path", { d: dArea, fill: color, opacity: .09 }));
+  svg.appendChild(svgEl("path", { d: dLine, fill: "none", stroke: color, "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+
+  // Endpunkt mit Flächen-Ring + direkte Beschriftung des letzten Werts
+  const last = points[points.length - 1];
+  svg.appendChild(svgEl("circle", { cx: x(last.t), cy: y(last.v), r: 4, fill: color, stroke: cssVar("--surface"), "stroke-width": 2 }));
+  const endLbl = svgEl("text", {
+    x: Math.min(x(last.t), W - M.right) - 2, y: Math.max(y(last.v) - 10, M.top + 10),
+    "text-anchor": "end", "font-size": 11.5, "font-weight": 650, fill: cssVar("--text-primary")
+  });
+  endLbl.textContent = fmt(last.v, sensor.decimals) + " " + sensor.unit;
+  svg.appendChild(endLbl);
+
+  // Hover-/Fokus-Ebene: Fadenkreuz + Tooltip
+  const cross = svgEl("line", { y1: M.top, y2: M.top + ih, stroke: baseInk, "stroke-width": 1, visibility: "hidden" });
+  const dot = svgEl("circle", { r: 4.5, fill: color, stroke: cssVar("--surface"), "stroke-width": 2, visibility: "hidden" });
+  svg.appendChild(cross); svg.appendChild(dot);
+
+  const tip = document.createElement("div");
+  tip.className = "tooltip";
+  const ttDate = document.createElement("div"); ttDate.className = "tt-date";
+  const ttRow = document.createElement("div"); ttRow.className = "tt-row";
+  const ttKey = document.createElement("span"); ttKey.className = "tt-key"; ttKey.style.background = color;
+  const ttVal = document.createElement("span"); ttVal.className = "tt-val";
+  const ttName = document.createElement("span"); ttName.className = "tt-name"; ttName.textContent = sensor.unit;
+  ttRow.appendChild(ttKey); ttRow.appendChild(ttVal); ttRow.appendChild(ttName);
+  tip.appendChild(ttDate); tip.appendChild(ttRow);
+
+  let focusIdx = -1;
+  function showAt(idx) {
+    focusIdx = idx;
+    const p = points[idx];
+    const px = x(p.t), py = y(p.v);
+    cross.setAttribute("x1", px); cross.setAttribute("x2", px);
+    cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", px); dot.setAttribute("cy", py);
+    dot.setAttribute("visibility", "visible");
+    ttDate.textContent = fmtTooltipDate(p.t, rangeKey);
+    ttVal.textContent = fmt(p.v, sensor.decimals);
+    tip.style.display = "block";
+    const bw = box.clientWidth, sx = bw / W;
+    let left = px * sx + 12;
+    tip.style.top = Math.max(0, py * sx - 10) + "px";
+    tip.style.left = "0px";
+    const tw = tip.offsetWidth;
+    if (left + tw > bw - 4) left = px * sx - tw - 12;
+    tip.style.left = Math.max(4, left) + "px";
+  }
+  function hide() {
+    focusIdx = -1;
+    cross.setAttribute("visibility", "hidden");
+    dot.setAttribute("visibility", "hidden");
+    tip.style.display = "none";
+  }
+  function idxFromEvent(ev) {
+    const r = svg.getBoundingClientRect();
+    const mx = ((ev.clientX - r.left) / r.width) * W;
+    const t = tMin + Math.min(1, Math.max(0, (mx - M.left) / iw)) * (tMax - tMin);
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < points.length; i++) {
+      const dd = Math.abs(points[i].t - t);
+      if (dd < bd) { bd = dd; best = i; }
+    }
+    return best;
+  }
+  svg.addEventListener("pointermove", ev => showAt(idxFromEvent(ev)));
+  svg.addEventListener("pointerleave", hide);
+  svg.addEventListener("focus", () => showAt(points.length - 1));
+  svg.addEventListener("blur", hide);
+  svg.addEventListener("keydown", ev => {
+    if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
+      ev.preventDefault();
+      const step = ev.key === "ArrowLeft" ? -1 : 1;
+      const next = focusIdx < 0 ? points.length - 1 : Math.min(points.length - 1, Math.max(0, focusIdx + step));
+      showAt(next);
+    } else if (ev.key === "Escape") hide();
+  });
+
+  box.appendChild(svg);
+  box.appendChild(tip);
+}
+
+// Tabellenansicht: alle Werte auch ohne Hover erreichbar
+function buildTableView(sensor, points, rangeKey) {
+  const det = document.createElement("details");
+  det.className = "tableview";
+  const sum = document.createElement("summary");
+  sum.textContent = "Daten als Tabelle anzeigen";
+  det.appendChild(sum);
+  const scroll = document.createElement("div");
+  scroll.className = "tablescroll";
+  const table = document.createElement("table");
+  table.className = "data";
+  const thead = document.createElement("thead");
+  const trh = document.createElement("tr");
+  for (const h of ["Zeitpunkt", `${sensor.label} (${sensor.unit})`]) {
+    const th = document.createElement("th"); th.textContent = h; trh.appendChild(th);
+  }
+  thead.appendChild(trh); table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  for (let i = points.length - 1; i >= 0; i--) {
+    const tr = document.createElement("tr");
+    const td1 = document.createElement("td"); td1.textContent = fmtTooltipDate(points[i].t, rangeKey);
+    const td2 = document.createElement("td"); td2.textContent = fmt(points[i].v, sensor.decimals);
+    tr.appendChild(td1); tr.appendChild(td2); tbody.appendChild(tr);
+  }
+  table.appendChild(tbody); scroll.appendChild(table); det.appendChild(scroll);
+  return det;
+}
+
+/* ============================================================
+   6) FARBSCHEMA-UMSCHALTER & INITIALISIERUNG
+   ============================================================ */
+const THEME_KEY = "pond-theme";
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  const dark = theme === "dark";
+  document.getElementById("themeIcon").textContent = dark ? "☀" : "☾";
+  document.getElementById("themeLabel").textContent = dark ? "Hell" : "Dunkel";
+}
+function initTheme() {
+  let theme = null;
+  try { theme = localStorage.getItem(THEME_KEY); } catch (e) { /* file:// o. ä. */ }
+  if (theme !== "light" && theme !== "dark") {
+    theme = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  }
+  applyTheme(theme);
+}
+
+let model = buildSeries();
+let currentRange = "d7";
+
+function renderAll() {
+  renderTiles(model);
+  renderCharts(model, currentRange);
+  const d = model.now;
+  document.getElementById("updated").textContent =
+    "Stand: " + fmtWeekday.format(d) + ", " + fmtDayMonth.format(d) + " " +
+    String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") + " Uhr";
+}
+
+document.getElementById("btn7").addEventListener("click", () => setRange("d7"));
+document.getElementById("btn31").addEventListener("click", () => setRange("d31"));
+function setRange(key) {
+  currentRange = key;
+  document.getElementById("btn7").setAttribute("aria-pressed", String(key === "d7"));
+  document.getElementById("btn31").setAttribute("aria-pressed", String(key === "d31"));
+  renderCharts(model, currentRange);
+}
+
+document.getElementById("themeBtn").addEventListener("click", () => {
+  const next = document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignorieren */ }
+  applyTheme(next);
+  renderAll(); // Serien-/Chromfarben im SVG neu auflösen
+});
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => renderCharts(model, currentRange), 150);
+});
+
+initTheme();
+renderAll();
+</script>
+</body>
+</html>
