@@ -29,6 +29,7 @@
   --s-kh:#e87ba4;
   --s-no3:#eb6834;
   --s-no2:#e34948;
+  --s-cl:#0682ad;
 
   /* Statusfarben (reserviert, nie als Serienfarbe) */
   --status-good:#0ca30c;
@@ -58,6 +59,7 @@
   --s-kh:#d55181;
   --s-no3:#d95926;
   --s-no2:#e66767;
+  --s-cl:#189ec0;
 
   --status-good:#0ca30c;
   --status-good-text:#2fbf2f;
@@ -345,6 +347,18 @@ const SENSORS = [
     icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3h4"/><path d="M10 3v6L4.5 18.2A2 2 0 0 0 6.3 21h11.4a2 2 0 0 0 1.8-2.8L14 9V3"/><path d="M7.5 15h9"/></svg>',
     limits: { min: null, max: 0.15 },
     fake: { base: 0.08, diurnalAmp: 0.012, peakHour: 7, driftAmp: 0.042, seed: 707 }
+  },
+  {
+    id: "cl",
+    label: "Chlor (frei)",
+    unit: "mg/l",
+    decimals: 3,
+    colorVar: "--s-cl",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6"/><path d="M10 3v12.5a2.5 2.5 0 0 0 5 0V3"/><path d="M10 11h5"/></svg>',
+    limits: { min: null, max: 0.05 },
+    // Sollte im Teich nahe 0 liegen (Eintrag v. a. über Leitungswasser);
+    // UV-Licht baut Chlor tagsüber ab → Maximum am frühen Morgen
+    fake: { base: 0.025, diurnalAmp: 0.005, peakHour: 6, driftAmp: 0.014, seed: 808 }
   }
 ];
 
