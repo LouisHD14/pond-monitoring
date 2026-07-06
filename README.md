@@ -1,8 +1,9 @@
 # Teich-Monitoring
 
-Monitoring-Dashboard für die Wasserwerte eines Gartenteichs (Temperatur, pH-Wert,
-gelöster Sauerstoff). Aufgebaut analog zum bestehenden Solar-Monitoring-Setup:
-Frontend und Backend sind getrennt deploybar.
+Monitoring-Dashboard für die Wasserwerte eines Gartenteichs: Temperatur, pH-Wert,
+gelöster Sauerstoff, Wasserhärte (GH), Karbonathärte (KH), Nitrat und Nitrit.
+Aufgebaut analog zum bestehenden Solar-Monitoring-Setup: Frontend und Backend
+sind getrennt deploybar.
 
 ## Status: Phase 1 — Design-Prototyp mit Demo-Daten
 
@@ -50,8 +51,9 @@ Datenquelle getauscht wird, nicht die Chart-Logik.
 
 Messgrößen sind konfigurationsgetrieben: In `frontend/index.html` einen Eintrag
 zum Array `SENSORS` hinzufügen (Label, Einheit, Farbe, Grenzwerte, Icon) —
-Kachel, Charts, Tooltip und Tabelle entstehen automatisch. Vorgesehen z. B. für
-Redoxpotential oder Wasserstand.
+Kachel, Charts, Tooltip und Tabelle entstehen automatisch. So wurden bereits
+Wasserhärte, Karbonathärte, Nitrat und Nitrit ergänzt; vorgesehen z. B. auch
+für Redoxpotential oder Wasserstand.
 
 ## Spätere Phasen (nicht Teil dieses Stands)
 

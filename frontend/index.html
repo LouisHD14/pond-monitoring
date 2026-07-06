@@ -25,6 +25,10 @@
   --s-temp:#2a78d6;
   --s-ph:#1baf7a;
   --s-o2:#4a3aa7;
+  --s-gh:#008300;
+  --s-kh:#e87ba4;
+  --s-no3:#eb6834;
+  --s-no2:#e34948;
 
   /* Statusfarben (reserviert, nie als Serienfarbe) */
   --status-good:#0ca30c;
@@ -50,6 +54,10 @@
   --s-temp:#3987e5;
   --s-ph:#199e70;
   --s-o2:#9085e9;
+  --s-gh:#008300;
+  --s-kh:#d55181;
+  --s-no3:#d95926;
+  --s-no2:#e66767;
 
   --status-good:#0ca30c;
   --status-good-text:#2fbf2f;
@@ -295,6 +303,48 @@ const SENSORS = [
     icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="9" r="3.4"/><circle cx="16" cy="15" r="4.2"/><circle cx="16.5" cy="5.5" r="1.6"/></svg>',
     limits: { min: 6.0, max: null },
     fake: { base: 7.4, diurnalAmp: 1.25, peakHour: 17, driftAmp: 0.55, seed: 303 }
+  },
+  {
+    id: "gh",
+    label: "Wasserhärte (GH)",
+    unit: "°dH",
+    decimals: 1,
+    colorVar: "--s-gh",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 20 9.2 17 20H7L4 9.2z"/><path d="M4 9.2h16"/></svg>',
+    limits: { min: 6, max: 20 },
+    // Härte ändert sich kaum im Tagesverlauf, nur langsamer Drift
+    fake: { base: 10.8, diurnalAmp: 0.06, peakHour: 16, driftAmp: 0.5, seed: 404 }
+  },
+  {
+    id: "kh",
+    label: "Karbonathärte (KH)",
+    unit: "°dH",
+    decimals: 1,
+    colorVar: "--s-kh",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c3 1.4 5.5 2 8 2 0 8-3 13-8 16-5-3-8-8-8-16 2.5 0 5-.6 8-2z"/></svg>',
+    limits: { min: 4, max: 14 },
+    fake: { base: 6.4, diurnalAmp: 0.12, peakHour: 8, driftAmp: 0.45, seed: 505 }
+  },
+  {
+    id: "no3",
+    label: "Nitrat (NO₃)",
+    unit: "mg/l",
+    decimals: 1,
+    colorVar: "--s-no3",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20c0-8 4-13 14-15-1 10-5 14-11 14"/><path d="M5 20c1.5-4 4-7 8-9"/></svg>',
+    limits: { min: null, max: 25 },
+    // Wird tagsüber von Algen/Pflanzen verbraucht → Maximum am frühen Morgen
+    fake: { base: 15, diurnalAmp: 0.7, peakHour: 5, driftAmp: 3.4, seed: 606 }
+  },
+  {
+    id: "no2",
+    label: "Nitrit (NO₂)",
+    unit: "mg/l",
+    decimals: 2,
+    colorVar: "--s-no2",
+    icon: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3h4"/><path d="M10 3v6L4.5 18.2A2 2 0 0 0 6.3 21h11.4a2 2 0 0 0 1.8-2.8L14 9V3"/><path d="M7.5 15h9"/></svg>',
+    limits: { min: null, max: 0.15 },
+    fake: { base: 0.08, diurnalAmp: 0.012, peakHour: 7, driftAmp: 0.042, seed: 707 }
   }
 ];
 
